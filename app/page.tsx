@@ -22,7 +22,6 @@ type Asset = {
   footagePath: string;
   preview: "serum" | "mirror" | "texture" | "sink" | "bottle" | "hands";
   mediaStatus: "Online" | "Missing";
-  lastUsed: string;
   visualMatch: number;
   usages: Usage[];
 };
@@ -36,7 +35,6 @@ const assets: Asset[] = [
     footagePath: "M:\\Media\\Skincare\\B-Roll\\skincare_serum_broll_04.mp4",
     preview: "serum",
     mediaStatus: "Online",
-    lastUsed: "Jul 8, 2026",
     visualMatch: 98,
     usages: [
       { app: "Premiere Pro", project: "Summer_Skincare_30s.prproj", projectPath: "P:\\Projects\\2026\\Summer Skincare\\Summer_Skincare_30s.prproj", sequence: "Main_30", range: "00:04:12-00:04:24", duration: 12, updated: "Jul 8, 2026" },
@@ -54,7 +52,6 @@ const assets: Asset[] = [
     footagePath: "M:\\Media\\Creators\\Routine\\creator_mirror_routine_02.mov",
     preview: "mirror",
     mediaStatus: "Online",
-    lastUsed: "Jul 6, 2026",
     visualMatch: 91,
     usages: [
       { app: "Premiere Pro", project: "Routine_Cutdowns.prproj", projectPath: "P:\\Projects\\2026\\Routine Cutdowns\\Routine_Cutdowns.prproj", sequence: "Vertical_15", range: "00:00:14-00:00:22", duration: 8, updated: "Jul 6, 2026" },
@@ -70,7 +67,6 @@ const assets: Asset[] = [
     footagePath: "M:\\Media\\Skincare\\Textures\\product_texture_macro_07.mp4",
     preview: "texture",
     mediaStatus: "Online",
-    lastUsed: "Jul 5, 2026",
     visualMatch: 87,
     usages: [
       { app: "After Effects", project: "Glow_Transitions.aep", projectPath: "P:\\Projects\\2026\\Motion\\Glow_Transitions.aep", sequence: "Texture_Loop", range: "00:00:10-00:00:18", duration: 8, updated: "Jul 5, 2026" },
@@ -85,7 +81,6 @@ const assets: Asset[] = [
     footagePath: "M:\\Media\\Creators\\Routine\\morning_routine_sink_03.mov",
     preview: "sink",
     mediaStatus: "Online",
-    lastUsed: "Jul 4, 2026",
     visualMatch: 73,
     usages: [
       { app: "Premiere Pro", project: "Creator_Stories.prproj", projectPath: "P:\\Projects\\2026\\Creator Stories\\Creator_Stories.prproj", sequence: "Morning_Routine", range: "00:00:42-00:00:48", duration: 6, updated: "Jul 4, 2026" },
@@ -100,7 +95,6 @@ const assets: Asset[] = [
     footagePath: "M:\\Media\\Skincare\\Packshots\\cleanser_bottle_turn_01.mp4",
     preview: "bottle",
     mediaStatus: "Missing",
-    lastUsed: "Jun 29, 2026",
     visualMatch: 61,
     usages: [
       { app: "After Effects", project: "Cleanser_Launch.aep", projectPath: "P:\\Projects\\2026\\Cleanser Launch\\Cleanser_Launch.aep", sequence: "Bottle_Turn", range: "00:00:04-00:00:10", duration: 6, updated: "Jun 29, 2026" },
@@ -114,7 +108,6 @@ const assets: Asset[] = [
     footagePath: "M:\\Media\\Skincare\\Applications\\hands_apply_cream_06.mov",
     preview: "hands",
     mediaStatus: "Online",
-    lastUsed: "Jun 26, 2026",
     visualMatch: 56,
     usages: [
       { app: "Premiere Pro", project: "Summer_Skincare_30s.prproj", projectPath: "P:\\Projects\\2026\\Summer Skincare\\Summer_Skincare_30s.prproj", sequence: "Main_30", range: "00:00:04-00:00:10", duration: 6, updated: "Jun 26, 2026" },
@@ -169,8 +162,24 @@ function formatSeconds(value: number) {
   return `00:${String(value).padStart(2, "0")}`;
 }
 
+function dateTimestamp(value: string) {
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(dateTimestamp(value)));
+}
+
 function latestUsage(usages: Usage[]) {
-  return [...usages].sort((a, b) => Date.parse(b.updated) - Date.parse(a.updated))[0];
+  return usages.reduce((latest, usage) =>
+    dateTimestamp(usage.updated) > dateTimestamp(latest.updated) ? usage : latest
+  );
 }
 
 function projectDate(project: string) {
@@ -240,7 +249,7 @@ export default function Home() {
     return filtered.sort((a, b) => {
       if (visualReference) return b.visualMatch - a.visualMatch;
       if (sort === "Least used") return a.usages.length - b.usages.length;
-      if (sort === "Recently used") return b.lastUsed.localeCompare(a.lastUsed);
+      if (sort === "Recently used") return dateTimestamp(latestUsage(b.usages).updated) - dateTimestamp(latestUsage(a.usages).updated);
       return totalDuration(b.usages) - totalDuration(a.usages);
     });
   }, [appFilter, folderFilter, usageFilter, statusFilter, search, sort, visualReference]);
@@ -298,13 +307,13 @@ export default function Home() {
         <section className="workspace">
           <div className="results-card">
             <div className="results-header"><h2>Footage results</h2><div className="segmented">{(["Most used", "Recently used", "Least used"] as const).map((option) => <button key={option} onClick={() => setSort(option)} className={sort === option ? "active" : ""}>{option}</button>)}</div></div>
-            <div className="table-head"><span>Footage</span><span>Projects</span><span>Uses</span><span>Total used</span><span>Last project</span></div>
+            <div className="table-head"><span>Footage</span><span>Projects</span><span>Uses</span><span>Total used</span><span>Last used</span></div>
             <div className="asset-list">
               {rows.map((asset) => {
                 const projectTotal = new Set(asset.usages.map((usage) => usage.project)).size;
                 const mostRecent = latestUsage(asset.usages);
                 return <div className={`asset-row ${selected.id === asset.id ? "asset-selected" : ""}`} onClick={() => setSelectedId(asset.id)} onKeyDown={(event) => { if (event.key === "Enter") setSelectedId(asset.id); }} role="button" tabIndex={0} key={asset.id}>
-                  <span className={`preview-thumb ${asset.preview}`} aria-hidden="true"><i /></span><span className="asset-name"><strong>{asset.name}</strong><small>{asset.kind}</small></span><span className="value-link">{projectTotal}</span><span className="value-link">{asset.usages.length}</span><span>{formatSeconds(totalDuration(asset.usages))}</span><button className="last-project-link" onClick={(event) => { event.stopPropagation(); setSelectedId(asset.id); setOpenedProject(mostRecent); }} title={`Open ${mostRecent.project}`}>{mostRecent.project}</button>
+                  <span className={`preview-thumb ${asset.preview}`} aria-hidden="true"><i /></span><span className="asset-name"><strong>{asset.name}</strong><small>{asset.kind}</small></span><span className="value-link">{projectTotal}</span><span className="value-link">{asset.usages.length}</span><span>{formatSeconds(totalDuration(asset.usages))}</span><button className="last-project-link" onClick={(event) => { event.stopPropagation(); setSelectedId(asset.id); setOpenedProject(mostRecent); }} title={`Open ${mostRecent.project}`}>{formatShortDate(mostRecent.updated)}</button>
                 </div>;
               })}
               {rows.length === 0 && <div className="empty-state">No footage matches these filters. Try another app, folder, or search phrase.</div>}
